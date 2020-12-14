@@ -1,5 +1,5 @@
 # Author: Klaus
-# Date: 2020/12/13 21:15
+# Date: 2020/12/13 16:55
 
 
 import logging
@@ -7,8 +7,13 @@ from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 import random
 import os
+from pixivpy3 import *
+import requests
+import shutil
 
 TOKEN = os.getenv("TOKEN")
+PIXIV_ID = os.getenv("PIXIV_ID")
+PIXIV_PW = os.getenv("PIXIV_PW")
 # os.environ["http_proxy"] = "http://127.0.0.1:7890"
 # os.environ["https_proxy"] = "http://127.0.0.1:7890"
 # Enable logging
@@ -113,11 +118,55 @@ def send_stickers(update, context):
 #         context.bot.send_venue(chat_id = update.effective_chat.id, latitude=-90*random.random()+90*random.random(), longitude=-180*random.random()+180*random.random())
 #         #context.bot.send_venue(chat_id=update.effective_chat.id,latitude=45.0,longitude=45.0, address="a",title="a")
 
+def pixiv(update, context):
+    if "照片" in update.message.text:
+        _USERNAME = PIXIV_ID
+        _PASSWORD = PIXIV_PW
+        _TEST_WRITE = False
+        _REQUESTS_KWARGS = {
+            # 'proxies': {
+            #     'https': 'http://127.0.0.1:7890',
+            # }
+
+        }
+        aapi = AppPixivAPI(**_REQUESTS_KWARGS)
+
+        aapi.login(_USERNAME, _PASSWORD)
+
+        json_result = aapi.search_illust('白井黑子', search_target='partial_match_for_tags')
+        illust = random.choice(json_result.illusts)
+        large_url = illust.image_urls['large']
+        # context.bot.send_message(chat_id = update.effective_chat.id, text=large_url)
+        # context.bot.send_photo(chat_id = update.effective_chat.id, photo=large_url)
+
+        headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36",
+            'Referer': 'https://app-api.pixiv.net/'
+        }
+        get_data = requests.get(url=large_url, headers=headers).content
+        data_name = illust.title + "." + large_url.split(".")[-1]
+        data_path = "./pixiv/" + data_name
+        if not os.path.exists("./pixiv"):
+            os.mkdir("./pixiv")
+        with open(data_path, "wb", ) as fp:
+            fp.write(get_data)
+        # context.bot.send_document(chat_id=update.effective_chat.id, document=open(data_path,"rb"))
+        context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(data_path,"rb"))
+
+def delete_pixiv(update, context):
+    if "黑子删除pixiv文件夹" in update.message.text:
+        shutil.rmtree('./pixiv')
+        os.mkdir('./pixiv')
+        context.bot.send_message(chat_id=update.effective_chat.id, text=str(os.listdir(os.getcwd())))
+
 def message(update, context):
     echo(update,context)
     audio(update,context)
     send_stickers(update,context)
     # venue(update,context)
+    pixiv(update, context)
+    delete_pixiv(update, context)
+
 
 def main():
     """Start the bot."""
