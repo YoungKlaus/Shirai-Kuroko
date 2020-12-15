@@ -1,5 +1,5 @@
 # Author: Klaus
-# Date: 2020/12/15 19:12
+# Date: 2020/12/15 23:59
 
 
 import logging
@@ -132,12 +132,15 @@ def pixiv(update, context):
         aapi = AppPixivAPI(**_REQUESTS_KWARGS)
 
         aapi.login(_USERNAME, _PASSWORD)
-        if " " in update.message.text:
-            keyword = update.message.text.split(" ")[-1]
+        if "色图" in update.message.text:
+            json_result = aapi.illust_ranking(mode="day_r18")
         else:
-            keyword = "白井黑子"
+            if " " in update.message.text:
+                keyword = update.message.text.split(" ")[-1]
+            else:
+                keyword = "白井黑子"
 
-        json_result = aapi.search_illust(keyword, search_target='partial_match_for_tags')
+            json_result = aapi.search_illust(keyword, search_target='partial_match_for_tags')
         illust = random.choice(json_result.illusts)
         large_url = illust.image_urls['large']
         # context.bot.send_message(chat_id = update.effective_chat.id, text=large_url)
@@ -200,4 +203,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
