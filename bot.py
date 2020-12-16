@@ -1,19 +1,24 @@
 # Author: Klaus
-# Date: 2020/12/15 23:59
+# Date: 2020/12/16 22:29
 
 
 import logging
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, MessageFilter
 import random
 import os
 from pixivpy3 import *
 import requests
 import shutil
+import string, time, json
+import hashlib
+from urllib.parse import urlencode
 
 TOKEN = os.getenv("TOKEN")
 PIXIV_ID = os.getenv("PIXIV_ID")
 PIXIV_PW = os.getenv("PIXIV_PW")
+TALK_ID = os.getenv("TALK_ID")
+TALK_PW = os.getenv("TALK_PW")
 # os.environ["http_proxy"] = "http://127.0.0.1:7890"
 # os.environ["https_proxy"] = "http://127.0.0.1:7890"
 # Enable logging
@@ -166,6 +171,39 @@ def delete_pixiv(update, context):
         os.mkdir('./pixiv')
         context.bot.send_message(chat_id=update.effective_chat.id, text=str(os.listdir(os.getcwd())))
 
+
+def talk(update,context):
+    def ran_str():
+        salt = ''.join(random.sample(string.ascii_letters + string.digits, 6))
+        return salt
+    app_key = TALK_PW
+    quests = update.message.text[1:]
+    params = {
+        "app_id": TALK_ID,
+        "session": "2333",
+        "question": quests,
+        "time_stamp": int(time.time()),
+        "nonce_str": ran_str()
+
+    }
+    # 处理参数
+    before_sign = ''
+    params_new = {}
+    for key in sorted(params):
+        params_new[key] = params[key]
+    before_sign += urlencode(params_new)
+    before_sign += f"&app_key={app_key}"
+    # 对获得的before_sign进行MD5加密
+    sign = hashlib.md5(before_sign.encode("utf-8")).hexdigest().upper()
+    # 将请求签名添加进参数字典
+    params["sign"] = sign
+
+    chat_url = "https://api.ai.qq.com/fcgi-bin/nlp/nlp_textchat"
+    r = requests.post(chat_url,params)
+    talk_reply = r.json()["data"]["answer"]
+    context.bot.send_message(chat_id=update.effective_chat.id, text=talk_reply)
+
+
 def message(update, context):
     echo(update,context)
     audio(update,context)
@@ -176,6 +214,13 @@ def message(update, context):
 
 
 def main():
+
+    class FilterAwesome(MessageFilter):
+        def filter(self, message):
+            return 'q' in message.text
+
+    # Remember to initialize the class.
+    filter_awesome = FilterAwesome()
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
     # Make sure to set use_context=True to use the new context based callbacks
@@ -190,6 +235,7 @@ def main():
     dispatcher.add_handler(CommandHandler("pin_message", pin))
     # dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command,audio))
     # on noncommand i.e message - echo the message on Telegram
+    dispatcher.add_handler(MessageHandler(filter_awesome, talk))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, message))
 
     # Start the Bot
@@ -203,3 +249,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
