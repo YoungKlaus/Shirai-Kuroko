@@ -13,12 +13,16 @@ import shutil
 import string, time, json
 import hashlib
 from urllib.parse import urlencode
+import base64
 
 TOKEN = os.getenv("TOKEN")
 PIXIV_ID = os.getenv("PIXIV_ID")
 PIXIV_PW = os.getenv("PIXIV_PW")
 TALK_ID = os.getenv("TALK_ID")
 TALK_PW = os.getenv("TALK_PW")
+# TOKEN = "1111946159:AAGhBURCKG5Jhvs-5PPqJQPklzDKTXS3mRM"
+# PIXIV_ID = "callmeklausplease@gmail.com"
+# PIXIV_PW = "83313883zxc"
 # os.environ["http_proxy"] = "http://127.0.0.1:7890"
 # os.environ["https_proxy"] = "http://127.0.0.1:7890"
 # Enable logging
@@ -135,7 +139,6 @@ def pixiv(update, context):
 
         }
         aapi = AppPixivAPI(**_REQUESTS_KWARGS)
-
         aapi.login(_USERNAME, _PASSWORD)
         if "色图" in update.message.text:
             json_result = aapi.illust_ranking(mode="day_r18")
@@ -172,49 +175,98 @@ def delete_pixiv(update, context):
         context.bot.send_message(chat_id=update.effective_chat.id, text=str(os.listdir(os.getcwd())))
 
 
+
 def talk(update,context):
     def ran_str():
         salt = ''.join(random.sample(string.ascii_letters + string.digits, 6))
         return salt
+
+    def jianquan(params):
+        # 处理参数
+        before_sign = ''
+        params_new = {}
+        for key in sorted(params):
+            params_new[key] = params[key]
+        before_sign += urlencode(params_new)
+        before_sign += f"&app_key={app_key}"
+        # 对获得的before_sign进行MD5加密
+        sign = hashlib.md5(before_sign.encode("utf-8")).hexdigest().upper()
+        # 将请求签名添加进参数字典
+        return sign
+
     app_key = TALK_PW
-    quests = update.message.text[1:]
+    flag = 0
+    update_text = update.message.text
+    if "qv" in update_text:
+        flag = 1
+        quests = update_text[2:]
+    else:
+        quests = update_text[1:]
     params = {
-        "app_id": TALK_ID,
+        "app_id": "2160905959",
         "session": "2333",
         "question": quests,
         "time_stamp": int(time.time()),
         "nonce_str": ran_str()
 
     }
-    # 处理参数
-    before_sign = ''
-    params_new = {}
-    for key in sorted(params):
-        params_new[key] = params[key]
-    before_sign += urlencode(params_new)
-    before_sign += f"&app_key={app_key}"
-    # 对获得的before_sign进行MD5加密
-    sign = hashlib.md5(before_sign.encode("utf-8")).hexdigest().upper()
-    # 将请求签名添加进参数字典
-    params["sign"] = sign
-
+    params["sign"] = jianquan(params)
     chat_url = "https://api.ai.qq.com/fcgi-bin/nlp/nlp_textchat"
     r = requests.post(chat_url,params)
-    talk_reply = r.json()["data"]["answer"]
-    context.bot.send_message(chat_id=update.effective_chat.id, text=talk_reply)
+    talk_text = r.json()["data"]["answer"]
+    # print(r.json()["data"]["answer"])
+    # context.bot.send_message(chat_id=update.effective_chat.id, text=talk_text)
+
+    if flag:
+        def voice_generate(context):
+            params_voice = {
+                "app_id": "2160905959",
+                "speaker": "5",
+                "format": "3",
+                "volume": "0",
+                "speed": "100",
+                "text": talk_text,
+                "aht": "6",
+                "apc": "55",
+                "time_stamp": int(time.time()),
+                "nonce_str": ran_str()
+            }
+
+            params_voice["sign"] = jianquan(params_voice)
+            voice_url = "https://api.ai.qq.com/fcgi-bin/aai/aai_tts"
+            v = requests.post(voice_url, params_voice)
+            voice_encode = v.json()["data"]["speech"]
+            if voice_encode:
+                # print(voice_encode)
+                voice_decode = base64.b64decode(voice_encode)
+                # voice_name = talk_text + ".mp3"
+                voice_address = "./pixiv/reply auto generate.mp3"
+                f = open(voice_address, "wb")
+                f.write(voice_decode)
+                f.close()
+                context.bot.send_audio(chat_id=update.effective_chat.id, audio=open(voice_address,"rb"))
+
+        context.bot.send_message(chat_id=update.effective_chat.id, text=talk_text)
+        voice_generate(context)
+    else:
+        context.bot.send_message(chat_id=update.effective_chat.id, text=talk_text)
+
+
 
 
 def message(update, context):
+
     echo(update,context)
     audio(update,context)
     send_stickers(update,context)
     # venue(update,context)
     pixiv(update, context)
     delete_pixiv(update, context)
+    # if "结束对话" not in update.message.text:
+    #     talk(update,context)
 
 
 def main():
-
     class FilterAwesome(MessageFilter):
         def filter(self, message):
             return 'q' in message.text
@@ -238,6 +290,7 @@ def main():
     dispatcher.add_handler(MessageHandler(filter_awesome, talk))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, message))
 
+
     # Start the Bot
     updater.start_polling()
 
@@ -249,4 +302,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
