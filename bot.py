@@ -1,7 +1,5 @@
 # Author: Klaus
-# Date: 2020/12/16 22:29
-
-
+# Date: 2021/1/3 19:41
 import logging
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, MessageFilter
@@ -14,15 +12,21 @@ import string, time, json
 import hashlib
 from urllib.parse import urlencode
 import base64
+from aliyunsdkcore.client import AcsClient
+from aliyunsdkcore.request import CommonRequest
 
 TOKEN = os.getenv("TOKEN")
 PIXIV_ID = os.getenv("PIXIV_ID")
 PIXIV_PW = os.getenv("PIXIV_PW")
 TALK_ID = os.getenv("TALK_ID")
 TALK_PW = os.getenv("TALK_PW")
-# TOKEN = "1111946159:AAGhBURCKG5Jhvs-5PPqJQPklzDKTXS3mRM"
-# PIXIV_ID = "callmeklausplease@gmail.com"
-# PIXIV_PW = "83313883zxc"
+AccessKey_Id = os.getenv("AccessKey_Id")
+AccessKey_Secret = os.getenv("AccessKey_Secret")
+appKey = os.getenv("appKey")
+headers = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36"}
+
+
+
 # os.environ["http_proxy"] = "http://127.0.0.1:7890"
 # os.environ["https_proxy"] = "http://127.0.0.1:7890"
 # Enable logging
@@ -218,36 +222,42 @@ def talk(update,context):
     # context.bot.send_message(chat_id=update.effective_chat.id, text=talk_text)
 
     if flag:
-        def voice_generate(context):
-            params_voice = {
-                "app_id": "2160905959",
-                "speaker": "5",
-                "format": "3",
-                "volume": "0",
-                "speed": "100",
-                "text": talk_text,
-                "aht": "6",
-                "apc": "55",
-                "time_stamp": int(time.time()),
-                "nonce_str": ran_str()
-            }
+        def get_token():
+            # 创建AcsClient实例
+            client = AcsClient(
+                AccessKey_Id,
+                AccessKey_Secret,
+                "cn-shanghai"
+            )
 
-            params_voice["sign"] = jianquan(params_voice)
-            voice_url = "https://api.ai.qq.com/fcgi-bin/aai/aai_tts"
-            v = requests.post(voice_url, params_voice)
-            voice_encode = v.json()["data"]["speech"]
-            if voice_encode:
-                # print(voice_encode)
-                voice_decode = base64.b64decode(voice_encode)
-                # voice_name = talk_text + ".mp3"
-                voice_address = "./pixiv/reply auto generate.mp3"
-                f = open(voice_address, "wb")
-                f.write(voice_decode)
-                f.close()
-                context.bot.send_audio(chat_id=update.effective_chat.id, audio=open(voice_address,"rb"))
+            # 创建request，并设置参数。
+            request = CommonRequest()
+            request.set_method('POST')
+            request.set_domain('nls-meta.cn-shanghai.aliyuncs.com')
+            request.set_version('2019-02-28')
+            request.set_action_name('CreateToken')
+            response = client.do_action_with_exception(request)
+            info = str(response, encoding="utf-8")
+            json_obj = json.loads(info)
+            token = json_obj["Token"]["Id"]
+            return token
 
+        token = get_token()
+        speech_rate = -200
+        format = 'mp3'
+        volume = 100
+        voice = 'Aixia'
+        text = talk_text
+        url = 'https://nls-gateway.cn-shanghai.aliyuncs.com/stream/v1/tts?appkey=' + appKey \
+              + '&token=' + token + '&format=' + format + '&voice=' + voice + '&speech_rate=' + \
+              str(speech_rate) + '&volume=' + str(volume) + '&text=' + text
         context.bot.send_message(chat_id=update.effective_chat.id, text=talk_text)
-        voice_generate(context)
+        try:
+            context.bot.send_audio(chat_id=update.effective_chat.id, audio=url)
+        except:
+            context.bot.send_audio(chat_id=update.effective_chat.id, audio=url)
+
+
     else:
         context.bot.send_message(chat_id=update.effective_chat.id, text=talk_text)
 
