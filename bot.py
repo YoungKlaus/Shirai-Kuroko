@@ -18,6 +18,7 @@ from aliyunsdkcore.request import CommonRequest
 TOKEN = os.getenv("TOKEN")
 PIXIV_ID = os.getenv("PIXIV_ID")
 PIXIV_PW = os.getenv("PIXIV_PW")
+REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
 TALK_ID = os.getenv("TALK_ID")
 TALK_PW = os.getenv("TALK_PW")
 AccessKey_Id = os.getenv("AccessKey_Id")
@@ -143,7 +144,8 @@ def pixiv(update, context):
 
         }
         aapi = AppPixivAPI(**_REQUESTS_KWARGS)
-        aapi.login(_USERNAME, _PASSWORD)
+        #aapi.login(_USERNAME, _PASSWORD)
+        aapi.auth(refresh_token=REFRESH_TOKEN)
         if "色图" in update.message.text:
             json_result = aapi.illust_ranking(mode="day_r18")
         else:
